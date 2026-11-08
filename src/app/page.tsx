@@ -9,7 +9,6 @@ import {
   AlertCircle,
   RefreshCw,
   Search,
-  Stethoscope,
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
@@ -17,9 +16,10 @@ import {
   ShieldCheck,
   Video,
   MapPin,
-  Check,
   Lock,
-  Building2,
+  Sun,
+  Moon,
+  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SlotWithAvailability, Booking } from "@/lib/types";
@@ -73,8 +73,13 @@ export default function CalBookingPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Theme mode: light or dark
+  const [isDark, setIsDark] = useState<boolean>(true);
+
   // Active doctor
   const [selectedDoctor, setSelectedDoctor] = useState<string>("Dr. Ade");
+  const [doctorModalOpen, setDoctorModalOpen] = useState(false);
+  const [doctorSearch, setDoctorSearch] = useState("");
 
   // Calendar month state
   const [viewDate, setViewDate] = useState<Date>(new Date());
@@ -94,6 +99,24 @@ export default function CalBookingPage() {
   const [searchEmail, setSearchEmail] = useState("");
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [searchingBookings, setSearchingBookings] = useState(false);
+
+  // Dark mode init
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      setIsDark(savedTheme === "dark");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [isDark]);
 
   // Fetch slots from API
   const fetchSlots = async () => {
@@ -130,6 +153,18 @@ export default function CalBookingPage() {
     }
   }, [availableDoctors, selectedDoctor]);
 
+  // Filtered doctors for modal search (Option B)
+  const filteredDoctors = useMemo(() => {
+    return availableDoctors.filter((docName) => {
+      const doc = DOCTOR_PROFILES[docName];
+      const term = doctorSearch.toLowerCase();
+      if (docName.toLowerCase().includes(term)) return true;
+      if (doc?.role.toLowerCase().includes(term)) return true;
+      if (doc?.specialty.toLowerCase().includes(term)) return true;
+      return false;
+    });
+  }, [availableDoctors, doctorSearch]);
+
   // Current doctor profile
   const currentDoctor = DOCTOR_PROFILES[selectedDoctor] || {
     name: selectedDoctor,
@@ -164,7 +199,7 @@ export default function CalBookingPage() {
     }
   }, [selectedDoctor, slots]);
 
-  // Calendar math for grid
+  // Calendar math
   const currentYear = viewDate.getFullYear();
   const currentMonth = viewDate.getMonth();
 
@@ -295,40 +330,39 @@ export default function CalBookingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-blue-600 selection:text-white">
-      {/* Top Navbar */}
-      <header className="border-b border-slate-200 bg-white sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-              <Stethoscope className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900 text-base tracking-tight">
-                  Koya Care Clinic
-                </span>
-                <span className="text-slate-300">|</span>
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                  <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                  <span>Outpatient & Telehealth Center</span>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#111111] text-slate-900 dark:text-zinc-100 flex flex-col justify-between selection:bg-zinc-800 dark:selection:bg-zinc-200 selection:text-white dark:selection:text-zinc-900 transition-colors duration-200">
+      {/* Top Navbar: Cal.com Text Logo & Clean Actions */}
+      <header className="border-b border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-[#111111] sticky top-0 z-30">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          {/* Cal.com style pure text logo */}
+          <div className="flex items-center gap-2">
+            <span className="font-cal font-bold text-slate-900 dark:text-white text-xl tracking-tight">
+              Koya.care
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setShowMyBookings(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition cursor-pointer"
             >
-              <Search className="h-3.5 w-3.5 text-slate-500" />
+              <Search className="h-3.5 w-3.5 text-slate-400 dark:text-zinc-500" />
               My Bookings
             </button>
+
+            {/* Dark / Light Mode Toggle */}
+            <button
+              onClick={() => setIsDark(!isDark)}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition cursor-pointer"
+              title="Toggle theme"
+            >
+              {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            </button>
+
             <button
               onClick={fetchSlots}
               disabled={loading}
-              className="p-1.5 border border-slate-300 rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              className="p-1.5 border border-slate-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition cursor-pointer"
               title="Refresh schedule"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -338,7 +372,7 @@ export default function CalBookingPage() {
       </header>
 
       {/* Main Booking Container */}
-      <main className="max-w-5xl mx-auto px-4 py-8 sm:py-10 flex-1 w-full flex flex-col justify-center">
+      <main className="max-w-5xl mx-auto px-4 py-8 sm:py-12 flex-1 w-full flex flex-col justify-center">
         {/* Alerts */}
         <AnimatePresence>
           {error && (
@@ -346,7 +380,7 @@ export default function CalBookingPage() {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-3 text-sm font-medium"
+              className="mb-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 flex items-start gap-3 text-sm font-medium"
             >
               <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-rose-600" />
               <div className="flex-1">{error}</div>
@@ -361,7 +395,7 @@ export default function CalBookingPage() {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-start gap-3 text-sm font-medium"
+              className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-start gap-3 text-sm font-medium"
             >
               <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-emerald-600" />
               <div className="flex-1">{successMsg}</div>
@@ -372,126 +406,76 @@ export default function CalBookingPage() {
           )}
         </AnimatePresence>
 
-        {/* Improved Physician Roster Tray */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3 px-1">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Select Physician
-            </span>
-            <span className="text-xs text-slate-400">
-              {availableDoctors.length} Doctors on duty
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {availableDoctors.map((docName) => {
-              const doc = DOCTOR_PROFILES[docName] || {
-                name: docName,
-                role: "Consultant",
-                specialty: "Outpatient Care",
-                image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=256&h=256",
-              };
-              const isSelected = selectedDoctor === docName;
-
-              return (
-                <button
-                  key={docName}
-                  onClick={() => {
-                    setSelectedDoctor(docName);
-                    setActiveStep("slots");
-                    setSelectedSlot(null);
-                  }}
-                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                    isSelected
-                      ? "border-blue-600 bg-white shadow-xs ring-1 ring-blue-600"
-                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={doc.image}
-                      alt={doc.name}
-                      className="h-11 w-11 rounded-xl object-cover border border-slate-100"
-                    />
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 leading-tight">
-                        {doc.name}
-                      </h4>
-                      <p className="text-[11px] text-blue-600 font-semibold mt-0.5">
-                        {doc.role}
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        {doc.specialty}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${
-                    isSelected ? "bg-blue-600 text-white" : "border border-slate-200 text-transparent"
-                  }`}>
-                    <Check className="h-3 w-3" />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Cal.com 2-Pane Workstation Card */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[520px]">
+        <div className="bg-white dark:bg-[#171717] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[520px]">
           {/* LEFT PANE: Doctor Info & Calendar Grid */}
-          <div className="md:col-span-7 p-6 sm:p-7 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between">
+          <div className="md:col-span-7 p-6 sm:p-8 border-b md:border-b-0 md:border-r border-slate-200 dark:border-zinc-800 flex flex-col justify-between">
             <div>
-              {/* Doctor Metadata */}
-              <div className="flex items-start gap-4 mb-5">
-                <img
-                  src={currentDoctor.image}
-                  alt={currentDoctor.name}
-                  className="h-14 w-14 rounded-2xl object-cover border border-slate-100"
-                />
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs text-slate-400 font-medium">Outpatient Consultation</span>
+              {/* Doctor Header with Option B (Change Doctor Selector) */}
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div className="flex items-start gap-3.5">
+                  <img
+                    src={currentDoctor.image}
+                    alt={currentDoctor.name}
+                    className="h-14 w-14 rounded-2xl object-cover border border-slate-200 dark:border-zinc-800"
+                  />
+                  <div>
+                    <div className="text-xs text-slate-400 dark:text-zinc-500 font-medium mb-0.5">
+                      Consultation
+                    </div>
+                    <h2 className="text-xl font-cal font-bold text-slate-900 dark:text-white tracking-tight">
+                      {currentDoctor.name}
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
+                      {currentDoctor.role} • {currentDoctor.specialty}
+                    </p>
                   </div>
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                    {currentDoctor.name}
-                  </h2>
-                  <p className="text-xs text-blue-600 font-semibold">
-                    {currentDoctor.role} • {currentDoctor.specialty}
-                  </p>
                 </div>
+
+                {/* Option B: Change Doctor Trigger Button */}
+                <button
+                  onClick={() => {
+                    setDoctorSearch("");
+                    setDoctorModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/80 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 transition cursor-pointer shrink-0"
+                >
+                  <span>Change Doctor</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mb-5 pb-5 border-b border-slate-100 font-medium">
+              {/* Consultation details */}
+              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-zinc-400 mb-6 pb-6 border-b border-slate-100 dark:border-zinc-800/60 font-medium">
                 <div className="flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-slate-400" />
+                  <Clock className="h-4 w-4 text-slate-400 dark:text-zinc-500" />
                   <span>{currentDoctor.duration}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <MapPin className="h-4 w-4 text-slate-400" />
+                  <MapPin className="h-4 w-4 text-slate-400 dark:text-zinc-500" />
                   <span>{currentDoctor.location}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Video className="h-4 w-4 text-slate-400" />
+                  <Video className="h-4 w-4 text-slate-400 dark:text-zinc-500" />
                   <span>In-Person & Telehealth</span>
                 </div>
               </div>
 
               {/* Month Navigator */}
-              <div className="flex items-center justify-between mb-3.5">
-                <h3 className="font-bold text-sm text-slate-900">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-cal font-bold text-sm text-slate-900 dark:text-white">
                   {monthName}
                 </h3>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setViewDate(new Date(currentYear, currentMonth - 1, 1))}
-                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition cursor-pointer"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setViewDate(new Date(currentYear, currentMonth + 1, 1))}
-                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition cursor-pointer"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -499,7 +483,7 @@ export default function CalBookingPage() {
               </div>
 
               {/* Calendar Weekday Headers */}
-              <div className="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+              <div className="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400 dark:text-zinc-500 mb-2 uppercase tracking-wider">
                 <span>Sun</span>
                 <span>Mon</span>
                 <span>Tue</span>
@@ -510,7 +494,7 @@ export default function CalBookingPage() {
               </div>
 
               {/* Calendar Days Matrix */}
-              <div className="grid grid-cols-7 gap-1 text-center">
+              <div className="grid grid-cols-7 gap-1.5 text-center">
                 {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                   <div key={`empty-${i}`} className="h-9 w-full" />
                 ))}
@@ -536,15 +520,15 @@ export default function CalBookingPage() {
                       }}
                       className={`h-9 w-full rounded-xl text-xs font-semibold flex flex-col items-center justify-center relative transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-blue-600 text-white shadow-2xs"
+                          ? "bg-slate-900 dark:bg-white text-white dark:text-zinc-950 font-bold"
                           : hasAvailableSlots
-                          ? "bg-blue-50 text-blue-900 font-bold hover:bg-blue-100"
-                          : "text-slate-600 hover:bg-slate-100"
+                          ? "bg-slate-100 dark:bg-zinc-800/80 text-slate-900 dark:text-white font-bold hover:bg-slate-200 dark:hover:bg-zinc-700"
+                          : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800/40"
                       }`}
                     >
                       <span>{dayNum}</span>
                       {hasAvailableSlots && !isSelected && (
-                        <span className="absolute bottom-1 h-1 w-1 rounded-full bg-blue-600" />
+                        <span className="absolute bottom-1 h-1 w-1 rounded-full bg-slate-900 dark:bg-zinc-300" />
                       )}
                     </button>
                   );
@@ -553,14 +537,14 @@ export default function CalBookingPage() {
             </div>
 
             {/* Bottom: Clinic Trust Badge */}
-            <div className="pt-4 border-t border-slate-100 mt-5 flex items-center gap-2 text-xs text-slate-400 font-medium">
-              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <div className="pt-4 border-t border-slate-100 dark:border-zinc-800/60 mt-6 flex items-center gap-2 text-xs text-slate-400 dark:text-zinc-500 font-medium">
+              <ShieldCheck className="h-4 w-4 text-emerald-500" />
               <span>Verified Koya Clinic Physician • Instant Booking</span>
             </div>
           </div>
 
           {/* RIGHT PANE: Time Slots & Inline Booking Flow */}
-          <div className="md:col-span-5 p-6 sm:p-7 bg-slate-50/50 flex flex-col justify-between">
+          <div className="md:col-span-5 p-6 sm:p-8 bg-slate-50/50 dark:bg-[#141414] flex flex-col justify-between">
             <AnimatePresence mode="wait">
               {/* STEP 1: Available Time Slots */}
               {activeStep === "slots" && (
@@ -573,10 +557,10 @@ export default function CalBookingPage() {
                   className="h-full flex flex-col"
                 >
                   <div className="mb-4">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                    <span className="text-xs font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider block mb-0.5">
                       Available Consultations
                     </span>
-                    <h3 className="text-sm font-bold text-slate-900">
+                    <h3 className="text-sm font-cal font-bold text-slate-900 dark:text-white">
                       {formatFullDate(selectedDate)}
                     </h3>
                   </div>
@@ -584,14 +568,14 @@ export default function CalBookingPage() {
                   <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[380px]">
                     {loading ? (
                       <div className="py-20 text-center">
-                        <RefreshCw className="h-6 w-6 text-blue-600 animate-spin mx-auto mb-2" />
-                        <p className="text-xs text-slate-500 font-medium">Loading slots...</p>
+                        <RefreshCw className="h-6 w-6 text-slate-400 animate-spin mx-auto mb-2" />
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">Loading slots...</p>
                       </div>
                     ) : activeDaySlots.length === 0 ? (
                       <div className="py-20 text-center px-4">
-                        <CalendarIcon className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                        <p className="text-sm font-semibold text-slate-700">No open slots</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <CalendarIcon className="h-8 w-8 text-slate-300 dark:text-zinc-600 mx-auto mb-2" />
+                        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">No open slots</p>
+                        <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">
                           Choose another date on the calendar.
                         </p>
                       </div>
@@ -606,30 +590,25 @@ export default function CalBookingPage() {
                               setSelectedSlot(slot);
                               setActiveStep("form");
                             }}
-                            className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all ${
+                            className={`w-full p-3.5 rounded-xl border text-left flex items-center justify-between transition-all ${
                               isAvailable
-                                ? "bg-white border-slate-200 hover:border-blue-600 hover:shadow-xs cursor-pointer group"
-                                : "bg-slate-100/70 border-slate-200/50 opacity-50 cursor-not-allowed"
+                                ? "bg-white dark:bg-zinc-900/90 border-slate-200 dark:border-zinc-800 hover:border-slate-400 dark:hover:border-zinc-600 shadow-2xs cursor-pointer group"
+                                : "bg-slate-100/70 dark:bg-zinc-900/40 border-slate-200/50 dark:border-zinc-800/40 opacity-40 cursor-not-allowed"
                             }`}
                           >
-                            <div className="flex items-center gap-2.5">
-                              <Clock className={`h-4 w-4 ${isAvailable ? "text-blue-600" : "text-slate-400"}`} />
-                              <span className={`text-xs font-semibold ${isAvailable ? "text-slate-800 group-hover:text-blue-600" : "text-slate-400"}`}>
+                            <div className="flex items-center gap-3">
+                              <Clock className={`h-4 w-4 ${isAvailable ? "text-slate-700 dark:text-zinc-300" : "text-slate-400 dark:text-zinc-600"}`} />
+                              <span className={`text-xs font-semibold ${isAvailable ? "text-slate-900 dark:text-zinc-100" : "text-slate-400 dark:text-zinc-500"}`}>
                                 {formatTime(slot.start)} - {formatTime(slot.end)}
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1.5 text-xs">
+                            {/* Only Icons: No Text like "Select" or "Taken" */}
+                            <div>
                               {isAvailable ? (
-                                <span className="text-blue-600 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                                  <span>Select</span>
-                                  <ArrowRight className="h-3.5 w-3.5" />
-                                </span>
+                                <ArrowRight className="h-4 w-4 text-slate-400 dark:text-zinc-500 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all" />
                               ) : (
-                                <span className="text-slate-400 font-medium flex items-center gap-1">
-                                  <Lock className="h-3 w-3" />
-                                  <span>Booked</span>
-                                </span>
+                                <Lock className="h-3.5 w-3.5 text-slate-400 dark:text-zinc-600" />
                               )}
                             </div>
                           </button>
@@ -653,22 +632,22 @@ export default function CalBookingPage() {
                   <div>
                     <button
                       onClick={() => setActiveStep("slots")}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 mb-3.5 transition cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white mb-3.5 transition cursor-pointer"
                     >
                       <ArrowLeft className="h-3.5 w-3.5" />
                       Back to times
                     </button>
 
-                    <h3 className="text-sm font-bold text-slate-900 mb-0.5">
+                    <h3 className="text-sm font-cal font-bold text-slate-900 dark:text-white mb-0.5">
                       Confirm Patient Information
                     </h3>
-                    <p className="text-xs text-slate-500 mb-4">
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mb-4">
                       {selectedDoctor} • {formatFullDate(selectedDate)} at {formatTime(selectedSlot.start)}
                     </p>
 
                     <form id="booking-form" onSubmit={handleConfirmBooking} className="space-y-3.5">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
                           Full Name
                         </label>
                         <input
@@ -677,12 +656,12 @@ export default function CalBookingPage() {
                           value={patientName}
                           onChange={(e) => setPatientName(e.target.value)}
                           placeholder="e.g. Ada Obi"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-white text-xs focus:outline-hidden focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
                           Email Address
                         </label>
                         <input
@@ -691,21 +670,21 @@ export default function CalBookingPage() {
                           value={patientEmail}
                           onChange={(e) => setPatientEmail(e.target.value)}
                           placeholder="ada@example.com"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-white text-xs focus:outline-hidden focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-500"
                         />
-                        <p className="text-[11px] text-slate-400 mt-1">
+                        <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1">
                           Your appointment reference will be sent to this email.
                         </p>
                       </div>
                     </form>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-200 mt-4">
+                  <div className="pt-4 border-t border-slate-200 dark:border-zinc-800 mt-4">
                     <button
                       type="submit"
                       form="booking-form"
                       disabled={actionLoading}
-                      className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition disabled:opacity-50 cursor-pointer shadow-xs flex items-center justify-center gap-2"
+                      className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-semibold transition disabled:opacity-50 cursor-pointer shadow-xs flex items-center justify-center gap-2"
                     >
                       {actionLoading ? (
                         <>
@@ -730,40 +709,39 @@ export default function CalBookingPage() {
                   className="h-full flex flex-col justify-between"
                 >
                   <div>
-                    <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 border border-emerald-200">
+                    <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3 border border-emerald-200 dark:border-emerald-800">
                       <CheckCircle2 className="h-5 w-5" />
                     </div>
 
-                    <h3 className="text-base font-bold text-slate-900 mb-0.5">
+                    <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white mb-0.5">
                       Booking Confirmed
                     </h3>
-                    <p className="text-xs text-slate-500 mb-4">
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mb-4">
                       Appointment scheduled with {selectedDoctor}.
                     </p>
 
-                    <div className="bg-white rounded-xl p-3.5 space-y-2 text-xs border border-slate-200">
-                      <div className="flex justify-between pb-1.5 border-b border-slate-100">
-                        <span className="text-slate-400">Reference:</span>
-                        <span className="font-mono font-bold text-slate-900">{bookingConfirmation.id}</span>
+                    <div className="bg-white dark:bg-zinc-900 rounded-xl p-3.5 space-y-2 text-xs border border-slate-200 dark:border-zinc-800">
+                      <div className="flex justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800/60">
+                        <span className="text-slate-400 dark:text-zinc-500">Reference:</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{bookingConfirmation.id}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Doctor:</span>
-                        <span className="font-semibold text-slate-900">{selectedDoctor}</span>
+                        <span className="text-slate-400 dark:text-zinc-500">Doctor:</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{selectedDoctor}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Date:</span>
-                        <span className="font-medium text-slate-900">{formatFullDate(selectedDate)}</span>
+                        <span className="text-slate-400 dark:text-zinc-500">Date:</span>
+                        <span className="font-medium text-slate-900 dark:text-white">{formatFullDate(selectedDate)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Patient:</span>
-                        <span className="font-medium text-slate-900">{bookingConfirmation.name}</span>
+                        <span className="text-slate-400 dark:text-zinc-500">Patient:</span>
+                        <span className="font-medium text-slate-900 dark:text-white">{bookingConfirmation.name}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Status:</span>
-                        <div className="flex items-center gap-1 font-semibold text-emerald-700">
-                          <Check className="h-3 w-3" />
-                          <span>Confirmed</span>
-                        </div>
+                        <span className="text-slate-400 dark:text-zinc-500">Status:</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                          Confirmed
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -773,7 +751,7 @@ export default function CalBookingPage() {
                       <button
                         onClick={() => handleCancelBooking(bookingConfirmation.id)}
                         disabled={actionLoading}
-                        className="w-full py-2 px-3 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition cursor-pointer"
+                        className="w-full py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-xs font-semibold transition cursor-pointer"
                       >
                         Cancel Appointment
                       </button>
@@ -784,7 +762,7 @@ export default function CalBookingPage() {
                         setBookingConfirmation(null);
                         setSelectedSlot(null);
                       }}
-                      className="w-full py-2 px-3 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition cursor-pointer"
+                      className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-semibold transition cursor-pointer"
                     >
                       Book Another
                     </button>
@@ -795,27 +773,115 @@ export default function CalBookingPage() {
           </div>
         </div>
 
-        {/* Modal: My Bookings Lookup */}
-        {showMyBookings && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+        {/* Option B: Searchable Doctor Directory Modal (Scales to 20+ Doctors!) */}
+        {doctorModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 max-h-[85vh] flex flex-col"
+              className="bg-white dark:bg-[#18181b] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white">
+                  Select Physician
+                </h3>
+                <button
+                  onClick={() => setDoctorModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                >
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Search input for 20+ doctors */}
+              <div className="relative mb-3.5">
+                <Search className="h-4 w-4 text-slate-400 dark:text-zinc-500 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  value={doctorSearch}
+                  onChange={(e) => setDoctorSearch(e.target.value)}
+                  placeholder="Search by name, role, or specialty..."
+                  className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-600"
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                {filteredDoctors.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-8">
+                    No doctors match your search.
+                  </p>
+                ) : (
+                  filteredDoctors.map((docName) => {
+                    const doc = DOCTOR_PROFILES[docName] || {
+                      name: docName,
+                      role: "Physician",
+                      specialty: "Outpatient Clinic",
+                      image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=256&h=256",
+                    };
+                    const isSelected = selectedDoctor === docName;
+
+                    return (
+                      <button
+                        key={docName}
+                        onClick={() => {
+                          setSelectedDoctor(docName);
+                          setDoctorModalOpen(false);
+                          setActiveStep("slots");
+                          setSelectedSlot(null);
+                        }}
+                        className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-slate-900 dark:border-white bg-slate-50 dark:bg-zinc-800/60"
+                            : "border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={doc.image}
+                            alt={doc.name}
+                            className="h-10 w-10 rounded-xl object-cover border border-slate-200 dark:border-zinc-800"
+                          />
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                              {doc.name}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                              {doc.role} • {doc.specialty}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <div className="h-2 w-2 rounded-full bg-slate-900 dark:bg-white" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal: My Bookings Lookup */}
+        {showMyBookings && (
+          <div className="fixed inset-0 z-50 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-[#18181b] rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
             >
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <Search className="h-4 w-4" />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900">
+                  <h3 className="text-sm font-cal font-bold text-slate-900 dark:text-white">
                     My Consultations
                   </h3>
                 </div>
                 <button
                   onClick={() => setShowMyBookings(false)}
-                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
                 >
                   <XCircle className="h-5 w-5" />
                 </button>
@@ -828,12 +894,12 @@ export default function CalBookingPage() {
                   value={searchEmail}
                   onChange={(e) => setSearchEmail(e.target.value)}
                   placeholder="Enter email (e.g. ada@example.com)"
-                  className="flex-1 px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-900 dark:text-white text-xs focus:outline-hidden focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-600"
                 />
                 <button
                   type="submit"
                   disabled={searchingBookings}
-                  className="px-3.5 py-2 bg-blue-600 text-white font-semibold text-xs rounded-xl hover:bg-blue-700 transition disabled:opacity-50 cursor-pointer"
+                  className="px-3.5 py-2 bg-slate-900 dark:bg-white text-white dark:text-zinc-950 font-semibold text-xs rounded-xl hover:bg-black dark:hover:bg-zinc-200 transition disabled:opacity-50 cursor-pointer"
                 >
                   {searchingBookings ? "Searching..." : "Search"}
                 </button>
@@ -841,28 +907,28 @@ export default function CalBookingPage() {
 
               <div className="flex-1 overflow-y-auto space-y-2 pr-1">
                 {myBookings.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-8">
+                  <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-8">
                     No bookings found. Enter your email above to check your consultation history.
                   </p>
                 ) : (
                   myBookings.map((b) => (
                     <div
                       key={b.id}
-                      className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between"
+                      className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 flex items-center justify-between"
                     >
                       <div>
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-xs font-bold text-slate-900">
+                          <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
                             {b.id}
                           </span>
                           <span className="text-xs text-slate-400">•</span>
                           <span className={`text-[11px] font-semibold ${
-                            b.status === "confirmed" ? "text-emerald-700" : "text-slate-500"
+                            b.status === "confirmed" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-zinc-500"
                           }`}>
                             {b.status}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400">
                           Slot: {b.slot_id} • {new Date(b.created_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -870,7 +936,7 @@ export default function CalBookingPage() {
                       {b.status === "confirmed" && (
                         <button
                           onClick={() => handleCancelBooking(b.id)}
-                          className="px-2.5 py-1 text-xs font-semibold text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                          className="px-2.5 py-1 text-xs font-semibold text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer"
                         >
                           Cancel
                         </button>
@@ -885,9 +951,9 @@ export default function CalBookingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-4">
-        <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-          <p>© 2026 Koya Care Clinic. Secure Patient Consultation Scheduling.</p>
+      <footer className="border-t border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-[#111111] py-4">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-zinc-500">
+          <p>© 2026 Koya.care. Patient Consultation Scheduling.</p>
           <span>Next.js 16 & Neon PostgreSQL</span>
         </div>
       </footer>

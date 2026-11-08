@@ -406,7 +406,7 @@ export default function BookingPage() {
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-slate-400" />
                         <span>
-                          {formatTime(slot.start)} – {formatTime(slot.end)}
+                          {formatTime(slot.start)} - {formatTime(slot.end)}
                         </span>
                       </div>
                     </div>

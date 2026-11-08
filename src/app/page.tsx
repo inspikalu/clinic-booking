@@ -4,9 +4,6 @@ import { useEffect, useState, useMemo } from "react";
 import {
   Calendar as CalendarIcon,
   Clock,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
   RefreshCw,
   Search,
   ChevronLeft,
@@ -20,7 +17,10 @@ import {
   Moon,
   ChevronDown,
   Heart,
+  Check,
+  X,
 } from "lucide-react";
+import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { SlotWithAvailability, Booking } from "@/lib/types";
 
@@ -70,8 +70,6 @@ export default function CalBookingPage() {
   const [slots, setSlots] = useState<SlotWithAvailability[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Theme mode: light or dark
   const [isDark, setIsDark] = useState<boolean>(true);
@@ -121,7 +119,6 @@ export default function CalBookingPage() {
   // Fetch slots from API
   const fetchSlots = async () => {
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch("/slots", {
         headers: { "X-API-Key": API_KEY },
@@ -130,7 +127,7 @@ export default function CalBookingPage() {
       if (!res.ok) throw new Error(data.error || "Failed to load slots");
       setSlots(data.slots || []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error connecting to server");
+      toast.error(err instanceof Error ? err.message : "Error connecting to server");
     } finally {
       setLoading(false);
     }
@@ -228,13 +225,40 @@ export default function CalBookingPage() {
     });
   }, [slots, selectedDoctor, selectedDate]);
 
+  // Helper to resolve doctor name from slot_id
+  const getDoctorForSlot = (slotId: string) => {
+    const matched = slots.find((s) => s.id === slotId);
+    if (matched?.provider) return matched.provider;
+    if (slotId.toLowerCase().includes("chioma")) return "Dr. Chioma";
+    if (slotId.toLowerCase().includes("ibrahim")) return "Dr. Ibrahim";
+    return "Dr. Ade";
+  };
+
+  // Helper to format slot time nicely
+  const getSlotTime = (slotId: string, createdAt: string) => {
+    const matched = slots.find((s) => s.id === slotId);
+    if (matched) {
+      const d = new Date(matched.start);
+      const dateFormatted = d.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      return `${dateFormatted} at ${formatTime(matched.start)}`;
+    }
+    return `Booked on ${new Date(createdAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })}`;
+  };
+
   // Handle Book submission
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return;
 
     setActionLoading(true);
-    setError(null);
     try {
       const res = await fetch("/bookings", {
         method: "POST",
@@ -254,10 +278,10 @@ export default function CalBookingPage() {
 
       setBookingConfirmation(data);
       setActiveStep("confirmation");
-      setSuccessMsg(`Appointment booked with ${selectedDoctor}!`);
+      toast.success(`Appointment confirmed with ${selectedDoctor}`);
       await fetchSlots();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Booking request failed");
+      toast.error(err instanceof Error ? err.message : "Booking request failed");
     } finally {
       setActionLoading(false);
     }
@@ -267,7 +291,6 @@ export default function CalBookingPage() {
   const handleCancelBooking = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
     setActionLoading(true);
-    setError(null);
     try {
       const res = await fetch(`/bookings/${bookingId}`, {
         method: "DELETE",
@@ -276,7 +299,7 @@ export default function CalBookingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Cancellation failed");
 
-      setSuccessMsg("Appointment has been cancelled.");
+      toast.success("Appointment has been cancelled");
       if (bookingConfirmation?.id === bookingId) {
         setBookingConfirmation(data);
       }
@@ -285,7 +308,7 @@ export default function CalBookingPage() {
       );
       await fetchSlots();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Cancellation failed");
+      toast.error(err instanceof Error ? err.message : "Cancellation failed");
     } finally {
       setActionLoading(false);
     }
@@ -297,16 +320,21 @@ export default function CalBookingPage() {
     if (!searchEmail.trim()) return;
 
     setSearchingBookings(true);
-    setError(null);
     try {
       const res = await fetch(`/bookings?email=${encodeURIComponent(searchEmail.trim())}`, {
         headers: { "X-API-Key": API_KEY },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Lookup failed");
-      setMyBookings(data.bookings || []);
+      const list = data.bookings || [];
+      setMyBookings(list);
+      if (list.length === 0) {
+        toast("No bookings found", {
+          description: "No consultations found for this email address.",
+        });
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to retrieve bookings");
+      toast.error(err instanceof Error ? err.message : "Failed to retrieve bookings");
     } finally {
       setSearchingBookings(false);
     }
@@ -373,39 +401,6 @@ export default function CalBookingPage() {
 
       {/* Main Booking Container */}
       <main className="max-w-5xl mx-auto px-4 py-8 sm:py-12 flex-1 w-full flex flex-col justify-center">
-        {/* Alerts */}
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mb-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 flex items-start gap-3 text-sm font-medium"
-            >
-              <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-rose-600" />
-              <div className="flex-1">{error}</div>
-              <button onClick={() => setError(null)} className="text-xs font-semibold text-rose-600 hover:underline">
-                Dismiss
-              </button>
-            </motion.div>
-          )}
-
-          {successMsg && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-start gap-3 text-sm font-medium"
-            >
-              <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-emerald-600" />
-              <div className="flex-1">{successMsg}</div>
-              <button onClick={() => setSuccessMsg(null)} className="text-xs font-semibold text-emerald-600 hover:underline">
-                Dismiss
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Cal.com 2-Pane Workstation Card */}
         <div className="bg-white dark:bg-[#171717] rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[520px]">
           {/* LEFT PANE: Doctor Info & Calendar Grid */}
@@ -697,69 +692,69 @@ export default function CalBookingPage() {
               {activeStep === "confirmation" && bookingConfirmation && (
                 <motion.div
                   key="step-confirmation"
-                  initial={{ opacity: 0, scale: 0.96 }}
+                  initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
                   className="h-full flex flex-col justify-between"
                 >
                   <div>
-                    <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3 border border-emerald-200 dark:border-emerald-800">
-                      <CheckCircle2 className="h-5 w-5" />
+                    {/* Sleek monochrome checkmark badge */}
+                    <div className="h-9 w-9 rounded-full bg-slate-900 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center mb-3.5 shadow-xs">
+                      <Check className="h-4 w-4 stroke-[2.5]" />
                     </div>
 
                     <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white mb-0.5">
-                      Booking Confirmed
+                      This consultation is scheduled
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-zinc-400 mb-4">
-                      Appointment scheduled with {selectedDoctor}.
+                      A confirmation has been sent to {bookingConfirmation.email}.
                     </p>
 
-                    <div className="bg-white dark:bg-zinc-900 rounded-xl p-3.5 space-y-2 text-xs border border-slate-200 dark:border-zinc-800">
-                      <div className="flex justify-between pb-1.5 border-b border-slate-100 dark:border-zinc-800/60">
-                        <span className="text-slate-400 dark:text-zinc-500">Reference:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{bookingConfirmation.id}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400 dark:text-zinc-500">Doctor:</span>
+                    <div className="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-3.5 space-y-2.5 text-xs border border-slate-200/80 dark:border-zinc-800">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-zinc-800/60">
+                        <span className="text-slate-500 dark:text-zinc-400 font-medium">Physician</span>
                         <span className="font-semibold text-slate-900 dark:text-white">{selectedDoctor}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400 dark:text-zinc-500">Date:</span>
-                        <span className="font-medium text-slate-900 dark:text-white">{formatFullDate(selectedDate)}</span>
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-zinc-800/60">
+                        <span className="text-slate-500 dark:text-zinc-400 font-medium">When</span>
+                        <span className="font-medium text-slate-900 dark:text-white">
+                          {formatFullDate(selectedDate)} at {selectedSlot ? formatTime(selectedSlot.start) : ""}
+                        </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400 dark:text-zinc-500">Patient:</span>
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-zinc-800/60">
+                        <span className="text-slate-500 dark:text-zinc-400 font-medium">Patient</span>
                         <span className="font-medium text-slate-900 dark:text-white">{bookingConfirmation.name}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400 dark:text-zinc-500">Status:</span>
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          Confirmed
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 dark:text-zinc-500 font-mono text-[11px]">Booking ID</span>
+                        <span className="font-mono text-[11px] text-slate-500 dark:text-zinc-400 select-all">
+                          {bookingConfirmation.id}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-2 pt-4">
-                    {bookingConfirmation.status === "confirmed" && (
-                      <button
-                        onClick={() => handleCancelBooking(bookingConfirmation.id)}
-                        disabled={actionLoading}
-                        className="w-full py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-xs font-semibold transition cursor-pointer"
-                      >
-                        Cancel Appointment
-                      </button>
-                    )}
                     <button
                       onClick={() => {
                         setActiveStep("slots");
                         setBookingConfirmation(null);
                         setSelectedSlot(null);
                       }}
-                      className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-semibold transition cursor-pointer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-950 text-xs font-semibold transition cursor-pointer"
                     >
-                      Book Another
+                      Done
                     </button>
+
+                    {bookingConfirmation.status === "confirmed" && (
+                      <button
+                        onClick={() => handleCancelBooking(bookingConfirmation.id)}
+                        disabled={actionLoading}
+                        className="w-full py-2 px-3 rounded-xl text-xs font-medium text-slate-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-zinc-800/60 transition cursor-pointer"
+                      >
+                        Cancel appointment
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -782,9 +777,9 @@ export default function CalBookingPage() {
                 </h3>
                 <button
                   onClick={() => setDoctorModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
                 >
-                  <XCircle className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
@@ -858,79 +853,104 @@ export default function CalBookingPage() {
           </div>
         )}
 
-        {/* Modal: My Bookings Lookup */}
+        {/* Modal: My Consultations Lookup */}
         {showMyBookings && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-[#18181b] rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-white dark:bg-[#18181b] rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
             >
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-cal font-bold text-slate-900 dark:text-white">
+              <div className="flex justify-between items-start mb-4 pb-3 border-b border-slate-100 dark:border-zinc-800/80">
+                <div>
+                  <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white">
                     My Consultations
                   </h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                    Lookup and manage your scheduled appointments.
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowMyBookings(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
                 >
-                  <XCircle className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
               <form onSubmit={handleSearchBookings} className="flex gap-2 mb-4">
-                <input
-                  type="email"
-                  required
-                  value={searchEmail}
-                  onChange={(e) => setSearchEmail(e.target.value)}
-                  placeholder="Enter email (e.g. ada@example.com)"
-                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-900 dark:text-white text-xs focus:outline-hidden focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-600"
-                />
+                <div className="relative flex-1">
+                  <Search className="h-4 w-4 text-slate-400 dark:text-zinc-500 absolute left-3 top-2.5" />
+                  <input
+                    type="email"
+                    required
+                    value={searchEmail}
+                    onChange={(e) => setSearchEmail(e.target.value)}
+                    placeholder="Search by email (e.g. ada@example.com)"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-hidden focus:ring-1 focus:ring-slate-400 dark:focus:ring-zinc-600"
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={searchingBookings}
-                  className="px-3.5 py-2 bg-slate-900 dark:bg-white text-white dark:text-zinc-950 font-semibold text-xs rounded-xl hover:bg-black dark:hover:bg-zinc-200 transition disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-zinc-950 font-semibold text-xs rounded-xl hover:bg-black dark:hover:bg-zinc-200 transition disabled:opacity-50 cursor-pointer shrink-0"
                 >
                   {searchingBookings ? "Searching..." : "Search"}
                 </button>
               </form>
 
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
                 {myBookings.length === 0 ? (
-                  <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-8">
-                    No bookings found. Enter your email above to check your consultation history.
-                  </p>
+                  <div className="text-center py-12 px-4">
+                    <CalendarIcon className="h-8 w-8 text-slate-300 dark:text-zinc-700 mx-auto mb-2" />
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
+                      No appointments found. Enter your email above to look up your bookings.
+                    </p>
+                  </div>
                 ) : (
                   myBookings.map((b) => (
                     <div
                       key={b.id}
-                      className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 flex items-center justify-between"
+                      className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/60 flex items-center justify-between gap-3 transition hover:border-slate-300 dark:hover:border-zinc-700"
                     >
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
-                            {b.id}
-                          </span>
-                          <span className="text-xs text-slate-400">•</span>
-                          <span className={`text-[11px] font-semibold ${
-                            b.status === "confirmed" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-zinc-500"
-                          }`}>
-                            {b.status}
-                          </span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-zinc-800/80 flex items-center justify-center shrink-0 text-slate-700 dark:text-zinc-300">
+                          <CalendarIcon className="h-4 w-4" />
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                          Slot: {b.slot_id} • {new Date(b.created_at).toLocaleDateString()}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <h4 className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                              {getDoctorForSlot(b.slot_id)} • Consultation
+                            </h4>
+                            <span
+                              className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md ${
+                                b.status === "confirmed"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  : "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"
+                              }`}
+                            >
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  b.status === "confirmed" ? "bg-emerald-500" : "bg-zinc-400"
+                                }`}
+                              />
+                              {b.status === "confirmed" ? "Confirmed" : "Cancelled"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                            {getSlotTime(b.slot_id, b.created_at)}
+                          </p>
+                          <p className="font-mono text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5 select-all">
+                            Ref: {b.id}
+                          </p>
+                        </div>
                       </div>
 
                       {b.status === "confirmed" && (
                         <button
                           onClick={() => handleCancelBooking(b.id)}
-                          className="px-2.5 py-1 text-xs font-semibold text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer"
+                          className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer shrink-0"
                         >
                           Cancel
                         </button>
@@ -960,6 +980,9 @@ export default function CalBookingPage() {
           </a>
         </div>
       </footer>
+
+      {/* Modern Sonner Toast Notifications */}
+      <Toaster position="bottom-right" richColors theme={isDark ? "dark" : "light"} />
     </div>
   );
 }

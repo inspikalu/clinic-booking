@@ -72,6 +72,53 @@ export async function POST(request: NextRequest) {
     const rawEmail = typeof bodyJson.email === "string" ? bodyJson.email.trim() : "";
     const email = rawEmail.toLowerCase();
 
+    // Level 5: Rate Limiting (5 attempts per email per minute, failed attempts included)
+    if (email) {
+      const rateCheck = await pool.query(
+        `SELECT attempted_at FROM rate_limits 
+         WHERE email = $1 AND attempted_at >= NOW() - INTERVAL '60 seconds'
+         ORDER BY attempted_at ASC`,
+        [email]
+      );
+
+      if (rateCheck.rows.length >= 5) {
+        // Record this blocked attempt as well
+        await pool.query(
+          `INSERT INTO rate_limits (email, attempted_at) VALUES ($1, NOW())`,
+          [email]
+        );
+
+        // Find the attempt that needs to roll off so count < 5
+        const indexToRollOff = rateCheck.rows.length - 5;
+        const targetAttempt = new Date(rateCheck.rows[indexToRollOff].attempted_at).getTime();
+        const now = Date.now();
+        const retryAfterSeconds = Math.max(1, Math.ceil((targetAttempt + 60000 - now) / 1000));
+
+        const rateLimitResponse = { error: "Too many attempts for this email" };
+
+        if (idempotencyKey) {
+          await pool.query(
+            `INSERT INTO idempotency_keys (key, request_hash, status_code, response_body)
+             VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING`,
+            [idempotencyKey, currentHash, 429, JSON.stringify(rateLimitResponse)]
+          );
+        }
+
+        return NextResponse.json(rateLimitResponse, {
+          status: 429,
+          headers: {
+            "Retry-After": retryAfterSeconds.toString(),
+          },
+        });
+      }
+
+      // Log this attempt
+      await pool.query(
+        `INSERT INTO rate_limits (email, attempted_at) VALUES ($1, NOW())`,
+        [email]
+      );
+    }
+
     // Level 2 Validation: slot_id, name, email
     if (!slot_id || !name || !email) {
       return NextResponse.json(
@@ -86,43 +133,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Level 5: Rate Limiting (5 attempts per email per minute)
-    const rateCheck = await pool.query(
-      `SELECT attempted_at FROM rate_limits 
-       WHERE email = $1 AND attempted_at >= NOW() - INTERVAL '60 seconds'
-       ORDER BY attempted_at ASC`,
-      [email]
-    );
-
-    if (rateCheck.rows.length >= 5) {
-      // Find oldest of the attempts in the window
-      const oldestAttempt = new Date(rateCheck.rows[0].attempted_at).getTime();
-      const now = Date.now();
-      const retryAfterSeconds = Math.max(1, Math.ceil((oldestAttempt + 60000 - now) / 1000));
-
-      const rateLimitResponse = { error: "Too many attempts for this email" };
-
-      if (idempotencyKey) {
-        await pool.query(
-          `INSERT INTO idempotency_keys (key, request_hash, status_code, response_body)
-           VALUES ($1, $2, $3, $4) ON CONFLICT (key) DO NOTHING`,
-          [idempotencyKey, currentHash, 429, JSON.stringify(rateLimitResponse)]
-        );
-      }
-
-      return NextResponse.json(rateLimitResponse, {
-        status: 429,
-        headers: {
-          "Retry-After": retryAfterSeconds.toString(),
-        },
-      });
-    }
-
-    // Log this attempt
-    await pool.query(`INSERT INTO rate_limits (email, attempted_at) VALUES ($1, NOW())`, [
-      email,
-    ]);
 
     // Levels 1, 2, 3: Atomic booking with concurrency locking
     const client = await pool.connect();
@@ -164,7 +174,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Generate booking ID
+      // Generate unique booking ID
       const bookingId = `b_${nanoid(12)}`;
 
       const insertResult = await client.query(
@@ -199,7 +209,12 @@ export async function POST(request: NextRequest) {
     } catch (err: unknown) {
       await client.query("ROLLBACK");
       // Handle PostgreSQL unique constraint violation (error 23505)
-      if (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23505") {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        (err as { code: string }).code === "23505"
+      ) {
         return NextResponse.json(
           { error: "Slot already booked" },
           { status: 409 }
@@ -238,7 +253,11 @@ export async function GET(request: NextRequest) {
     let limit = 10;
     if (limitParam !== null) {
       const parsedLimit = parseInt(limitParam, 10);
-      if (isNaN(parsedLimit) || parsedLimit <= 0 || parsedLimit.toString() !== limitParam.trim()) {
+      if (
+        isNaN(parsedLimit) ||
+        parsedLimit <= 0 ||
+        parsedLimit.toString() !== limitParam.trim()
+      ) {
         return NextResponse.json({ error: "Invalid limit" }, { status: 400 });
       }
       limit = parsedLimit;
@@ -256,7 +275,9 @@ export async function GET(request: NextRequest) {
 
     if (cursor) {
       try {
-        const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf-8"));
+        const decoded = JSON.parse(
+          Buffer.from(cursor, "base64url").toString("utf-8")
+        );
         if (!decoded.created_at || !decoded.id) {
           return NextResponse.json({ error: "Invalid cursor" }, { status: 400 });
         }

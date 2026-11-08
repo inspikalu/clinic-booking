@@ -13,7 +13,6 @@ import {
   ChevronRight,
   ArrowLeft,
   ArrowRight,
-  ShieldCheck,
   Video,
   MapPin,
   Lock,
@@ -534,12 +533,6 @@ export default function CalBookingPage() {
                   );
                 })}
               </div>
-            </div>
-
-            {/* Bottom: Clinic Trust Badge */}
-            <div className="pt-4 border-t border-slate-100 dark:border-zinc-800/60 mt-6 flex items-center gap-2 text-xs text-slate-400 dark:text-zinc-500 font-medium">
-              <ShieldCheck className="h-4 w-4 text-emerald-500" />
-              <span>Verified Koya Clinic Physician • Instant Booking</span>
             </div>
           </div>
 

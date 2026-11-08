@@ -17,7 +17,7 @@ function isValidEmail(email: string): boolean {
 }
 
 // -------------------------------------------------------------
-// POST /bookings (Levels 1-5)
+// POST /bookings 
 // -------------------------------------------------------------
 export async function POST(request: NextRequest) {
   const authError = checkApiKey(request);
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Levels 1, 2, 3: Atomic booking with concurrency locking
+    // Atomic booking with concurrency locking
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
 }
 
 // -------------------------------------------------------------
-// GET /bookings (Level 4: List a person's bookings with pagination)
+// GET /bookings 
 // -------------------------------------------------------------
 export async function GET(request: NextRequest) {
   const authError = checkApiKey(request);

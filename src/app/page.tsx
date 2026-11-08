@@ -19,6 +19,7 @@ import {
   Heart,
   Check,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -97,6 +98,30 @@ export default function CalBookingPage() {
   const [searchEmail, setSearchEmail] = useState("");
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [searchingBookings, setSearchingBookings] = useState(false);
+
+  // Modern Cancel Confirmation Dialog State
+  const [bookingToCancel, setBookingToCancel] = useState<{
+    id: string;
+    doctor?: string;
+    time?: string;
+  } | null>(null);
+
+  // Close modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (bookingToCancel) {
+          setBookingToCancel(null);
+        } else if (doctorModalOpen) {
+          setDoctorModalOpen(false);
+        } else if (showMyBookings) {
+          setShowMyBookings(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [bookingToCancel, doctorModalOpen, showMyBookings]);
 
   // Dark mode init
   useEffect(() => {
@@ -287,9 +312,11 @@ export default function CalBookingPage() {
     }
   };
 
-  // Handle Cancel booking
-  const handleCancelBooking = async (bookingId: string) => {
-    if (!confirm("Are you sure you want to cancel this booking?")) return;
+  // Handle confirmed booking cancellation
+  const handleConfirmCancel = async () => {
+    if (!bookingToCancel) return;
+    const bookingId = bookingToCancel.id;
+
     setActionLoading(true);
     try {
       const res = await fetch(`/bookings/${bookingId}`, {
@@ -299,13 +326,16 @@ export default function CalBookingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Cancellation failed");
 
-      toast.success("Appointment has been cancelled");
+      toast.success("Appointment cancelled", {
+        description: "Your consultation has been successfully cancelled.",
+      });
       if (bookingConfirmation?.id === bookingId) {
         setBookingConfirmation(data);
       }
       setMyBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, status: "cancelled" } : b))
       );
+      setBookingToCancel(null);
       await fetchSlots();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Cancellation failed");
@@ -698,19 +728,54 @@ export default function CalBookingPage() {
                   className="h-full flex flex-col justify-between"
                 >
                   <div>
-                    {/* Sleek monochrome checkmark badge */}
-                    <div className="h-9 w-9 rounded-full bg-slate-900 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center mb-3.5 shadow-xs">
-                      <Check className="h-4 w-4 stroke-[2.5]" />
-                    </div>
+                    {bookingConfirmation.status === "cancelled" ? (
+                      <div>
+                        {/* Red cancellation badge */}
+                        <div className="h-9 w-9 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center mb-3.5 shadow-xs">
+                          <X className="h-4 w-4 stroke-[2.5]" />
+                        </div>
 
-                    <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white mb-0.5">
-                      This consultation is scheduled
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 mb-4">
-                      A confirmation has been sent to {bookingConfirmation.email}.
-                    </p>
+                        <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white mb-0.5">
+                          Consultation cancelled
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 mb-4">
+                          This appointment has been cancelled and the slot reopened.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        {/* Sleek monochrome checkmark badge */}
+                        <div className="h-9 w-9 rounded-full bg-slate-900 dark:bg-white text-white dark:text-zinc-950 flex items-center justify-center mb-3.5 shadow-xs">
+                          <Check className="h-4 w-4 stroke-[2.5]" />
+                        </div>
+
+                        <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white mb-0.5">
+                          This consultation is scheduled
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 mb-4">
+                          A confirmation has been sent to {bookingConfirmation.email}.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="bg-slate-50 dark:bg-zinc-900/60 rounded-xl p-3.5 space-y-2.5 text-xs border border-slate-200/80 dark:border-zinc-800">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-zinc-800/60">
+                        <span className="text-slate-500 dark:text-zinc-400 font-medium">Status</span>
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                            bookingConfirmation.status === "confirmed"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              bookingConfirmation.status === "confirmed" ? "bg-emerald-500" : "bg-rose-500"
+                            }`}
+                          />
+                          {bookingConfirmation.status === "confirmed" ? "Confirmed" : "Cancelled"}
+                        </span>
+                      </div>
                       <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-zinc-800/60">
                         <span className="text-slate-500 dark:text-zinc-400 font-medium">Physician</span>
                         <span className="font-semibold text-slate-900 dark:text-white">{selectedDoctor}</span>
@@ -748,7 +813,15 @@ export default function CalBookingPage() {
 
                     {bookingConfirmation.status === "confirmed" && (
                       <button
-                        onClick={() => handleCancelBooking(bookingConfirmation.id)}
+                        onClick={() =>
+                          setBookingToCancel({
+                            id: bookingConfirmation.id,
+                            doctor: selectedDoctor,
+                            time: selectedSlot
+                              ? `${formatFullDate(selectedDate)} at ${formatTime(selectedSlot.start)}`
+                              : undefined,
+                          })
+                        }
                         disabled={actionLoading}
                         className="w-full py-2 px-3 rounded-xl text-xs font-medium text-slate-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-zinc-800/60 transition cursor-pointer"
                       >
@@ -763,205 +836,317 @@ export default function CalBookingPage() {
         </div>
 
         {/* Option B: Searchable Doctor Directory Modal (Scales to 20+ Doctors!) */}
-        {doctorModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-[#18181b] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
+        <AnimatePresence>
+          {doctorModalOpen && (
+            <div
+              className="fixed inset-0 z-50 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+              onClick={() => setDoctorModalOpen(false)}
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white">
-                  Select Physician
-                </h3>
-                <button
-                  onClick={() => setDoctorModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-[#18181b] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white">
+                    Select Physician
+                  </h3>
+                  <button
+                    onClick={() => setDoctorModalOpen(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
 
-              {/* Search input for 20+ doctors */}
-              <div className="relative mb-3.5">
-                <Search className="h-4 w-4 text-slate-400 dark:text-zinc-500 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  value={doctorSearch}
-                  onChange={(e) => setDoctorSearch(e.target.value)}
-                  placeholder="Search by name, role, or specialty..."
-                  className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-600"
-                />
-              </div>
+                {/* Search input for 20+ doctors */}
+                <div className="relative mb-3.5">
+                  <Search className="h-4 w-4 text-slate-400 dark:text-zinc-500 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    value={doctorSearch}
+                    onChange={(e) => setDoctorSearch(e.target.value)}
+                    placeholder="Search by name, role, or specialty..."
+                    className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-slate-400 dark:focus:ring-zinc-600"
+                  />
+                </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                {filteredDoctors.length === 0 ? (
-                  <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-8">
-                    No doctors match your search.
-                  </p>
-                ) : (
-                  filteredDoctors.map((docName) => {
-                    const doc = DOCTOR_PROFILES[docName] || {
-                      name: docName,
-                      role: "Physician",
-                      specialty: "Outpatient Clinic",
-                      image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=256&h=256",
-                    };
-                    const isSelected = selectedDoctor === docName;
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                  {filteredDoctors.length === 0 ? (
+                    <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-8">
+                      No doctors match your search.
+                    </p>
+                  ) : (
+                    filteredDoctors.map((docName) => {
+                      const doc = DOCTOR_PROFILES[docName] || {
+                        name: docName,
+                        role: "Physician",
+                        specialty: "Outpatient Clinic",
+                        image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=256&h=256",
+                      };
+                      const isSelected = selectedDoctor === docName;
 
-                    return (
-                      <button
-                        key={docName}
-                        onClick={() => {
-                          setSelectedDoctor(docName);
-                          setDoctorModalOpen(false);
-                          setActiveStep("slots");
-                          setSelectedSlot(null);
-                        }}
-                        className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                          isSelected
-                            ? "border-slate-900 dark:border-white bg-slate-50 dark:bg-zinc-800/60"
-                            : "border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900"
-                        }`}
+                      return (
+                        <button
+                          key={docName}
+                          onClick={() => {
+                            setSelectedDoctor(docName);
+                            setDoctorModalOpen(false);
+                            setActiveStep("slots");
+                            setSelectedSlot(null);
+                          }}
+                          className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-slate-900 dark:border-white bg-slate-50 dark:bg-zinc-800/60"
+                              : "border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={doc.image}
+                              alt={doc.name}
+                              className="h-10 w-10 rounded-xl object-cover border border-slate-200 dark:border-zinc-800"
+                            />
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                                {doc.name}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                                {doc.role} • {doc.specialty}
+                              </p>
+                            </div>
+                          </div>
+
+                          {isSelected && (
+                            <div className="h-2 w-2 rounded-full bg-slate-900 dark:bg-white" />
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal: My Consultations Lookup */}
+        <AnimatePresence>
+          {showMyBookings && (
+            <div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+              onClick={() => setShowMyBookings(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-[#18181b] rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
+              >
+                <div className="flex justify-between items-start mb-4 pb-3 border-b border-slate-100 dark:border-zinc-800/80">
+                  <div>
+                    <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white">
+                      My Consultations
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                      Lookup and manage your scheduled appointments.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowMyBookings(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSearchBookings} className="flex gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="h-4 w-4 text-slate-400 dark:text-zinc-500 absolute left-3 top-2.5" />
+                    <input
+                      type="email"
+                      required
+                      value={searchEmail}
+                      onChange={(e) => setSearchEmail(e.target.value)}
+                      placeholder="Search by email (e.g. ada@example.com)"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-hidden focus:ring-1 focus:ring-slate-400 dark:focus:ring-zinc-600"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={searchingBookings}
+                    className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-zinc-950 font-semibold text-xs rounded-xl hover:bg-black dark:hover:bg-zinc-200 transition disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {searchingBookings ? "Searching..." : "Search"}
+                  </button>
+                </form>
+
+                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                  {myBookings.length === 0 ? (
+                    <div className="text-center py-12 px-4">
+                      <CalendarIcon className="h-8 w-8 text-slate-300 dark:text-zinc-700 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
+                        No appointments found. Enter your email above to look up your bookings.
+                      </p>
+                    </div>
+                  ) : (
+                    myBookings.map((b) => (
+                      <div
+                        key={b.id}
+                        className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/60 flex items-center justify-between gap-3 transition hover:border-slate-300 dark:hover:border-zinc-700"
                       >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={doc.image}
-                            alt={doc.name}
-                            className="h-10 w-10 rounded-xl object-cover border border-slate-200 dark:border-zinc-800"
-                          />
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                              {doc.name}
-                            </h4>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-zinc-800/80 flex items-center justify-center shrink-0 text-slate-700 dark:text-zinc-300">
+                            <CalendarIcon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <h4 className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                {getDoctorForSlot(b.slot_id)} • Consultation
+                              </h4>
+                              <span
+                                className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md ${
+                                  b.status === "confirmed"
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"
+                                }`}
+                              >
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${
+                                    b.status === "confirmed" ? "bg-emerald-500" : "bg-zinc-400"
+                                  }`}
+                                />
+                                {b.status === "confirmed" ? "Confirmed" : "Cancelled"}
+                              </span>
+                            </div>
                             <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                              {doc.role} • {doc.specialty}
+                              {getSlotTime(b.slot_id, b.created_at)}
+                            </p>
+                            <p className="font-mono text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5 select-all">
+                              Ref: {b.id}
                             </p>
                           </div>
                         </div>
 
-                        {isSelected && (
-                          <div className="h-2 w-2 rounded-full bg-slate-900 dark:bg-white" />
+                        {b.status === "confirmed" && (
+                          <button
+                            onClick={() =>
+                              setBookingToCancel({
+                                id: b.id,
+                                doctor: getDoctorForSlot(b.slot_id),
+                                time: getSlotTime(b.slot_id, b.created_at),
+                              })
+                            }
+                            className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer shrink-0"
+                          >
+                            Cancel
+                          </button>
                         )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-
-        {/* Modal: My Consultations Lookup */}
-        {showMyBookings && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="bg-white dark:bg-[#18181b] rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-zinc-800 max-h-[85vh] flex flex-col"
-            >
-              <div className="flex justify-between items-start mb-4 pb-3 border-b border-slate-100 dark:border-zinc-800/80">
-                <div>
-                  <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white">
-                    My Consultations
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                    Lookup and manage your scheduled appointments.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowMyBookings(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSearchBookings} className="flex gap-2 mb-4">
-                <div className="relative flex-1">
-                  <Search className="h-4 w-4 text-slate-400 dark:text-zinc-500 absolute left-3 top-2.5" />
-                  <input
-                    type="email"
-                    required
-                    value={searchEmail}
-                    onChange={(e) => setSearchEmail(e.target.value)}
-                    placeholder="Search by email (e.g. ada@example.com)"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-hidden focus:ring-1 focus:ring-slate-400 dark:focus:ring-zinc-600"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={searchingBookings}
-                  className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-zinc-950 font-semibold text-xs rounded-xl hover:bg-black dark:hover:bg-zinc-200 transition disabled:opacity-50 cursor-pointer shrink-0"
-                >
-                  {searchingBookings ? "Searching..." : "Search"}
-                </button>
-              </form>
-
-              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-                {myBookings.length === 0 ? (
-                  <div className="text-center py-12 px-4">
-                    <CalendarIcon className="h-8 w-8 text-slate-300 dark:text-zinc-700 mx-auto mb-2" />
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
-                      No appointments found. Enter your email above to look up your bookings.
-                    </p>
-                  </div>
-                ) : (
-                  myBookings.map((b) => (
-                    <div
-                      key={b.id}
-                      className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/60 flex items-center justify-between gap-3 transition hover:border-slate-300 dark:hover:border-zinc-700"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-zinc-800/80 flex items-center justify-center shrink-0 text-slate-700 dark:text-zinc-300">
-                          <CalendarIcon className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <h4 className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                              {getDoctorForSlot(b.slot_id)} • Consultation
-                            </h4>
-                            <span
-                              className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md ${
-                                b.status === "confirmed"
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                  : "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"
-                              }`}
-                            >
-                              <span
-                                className={`h-1.5 w-1.5 rounded-full ${
-                                  b.status === "confirmed" ? "bg-emerald-500" : "bg-zinc-400"
-                                }`}
-                              />
-                              {b.status === "confirmed" ? "Confirmed" : "Cancelled"}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                            {getSlotTime(b.slot_id, b.created_at)}
-                          </p>
-                          <p className="font-mono text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5 select-all">
-                            Ref: {b.id}
-                          </p>
-                        </div>
                       </div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
-                      {b.status === "confirmed" && (
-                        <button
-                          onClick={() => handleCancelBooking(b.id)}
-                          className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer shrink-0"
-                        >
-                          Cancel
-                        </button>
-                      )}
+        {/* Modern Confirmation Dialog for Appointment Cancellation */}
+        <AnimatePresence>
+          {bookingToCancel && (
+            <div
+              className="fixed inset-0 z-60 bg-slate-900/40 dark:bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+              onClick={() => {
+                if (!actionLoading) setBookingToCancel(null);
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 8 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-[#18181b] rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 dark:border-zinc-800 flex flex-col"
+              >
+                <div className="flex items-start justify-between mb-3.5">
+                  <div className="h-10 w-10 rounded-xl bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!actionLoading) setBookingToCancel(null);
+                    }}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                    aria-label="Close dialog"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <h3 className="text-base font-cal font-bold text-slate-900 dark:text-white mb-1">
+                  Cancel Consultation?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed mb-4">
+                  Are you sure you want to cancel this appointment? This action cannot be undone and your slot will be reopened for other patients.
+                </p>
+
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/80 border border-slate-200/80 dark:border-zinc-800 space-y-1.5 text-xs mb-4">
+                  {bookingToCancel.doctor && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-zinc-400">Physician</span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {bookingToCancel.doctor}
+                      </span>
                     </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
+                  )}
+                  {bookingToCancel.time && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-zinc-400">When</span>
+                      <span className="font-medium text-slate-800 dark:text-zinc-200">
+                        {bookingToCancel.time}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-zinc-800/60">
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono">Reference</span>
+                    <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 truncate max-w-[170px] select-all">
+                      {bookingToCancel.id}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => setBookingToCancel(null)}
+                    className="flex-1 py-2 px-3 rounded-xl border border-slate-200 dark:border-zinc-700/80 bg-white dark:bg-zinc-800/70 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-medium text-xs transition cursor-pointer text-center disabled:opacity-50"
+                  >
+                    Keep Appointment
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={handleConfirmCancel}
+                    className="flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
+                  >
+                    {actionLoading ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Cancelling...</span>
+                      </>
+                    ) : (
+                      <span>Yes, Cancel</span>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Footer */}

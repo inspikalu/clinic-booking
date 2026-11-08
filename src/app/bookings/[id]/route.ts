@@ -4,7 +4,7 @@ import { getPool, initDb } from "@/lib/db";
 import { Booking } from "@/lib/types";
 
 // -------------------------------------------------------------
-// GET /bookings/{id} (Level 1: Get a booking)
+// GET /bookings/{id} 
 // -------------------------------------------------------------
 export async function GET(
   request: NextRequest,
@@ -48,7 +48,7 @@ export async function GET(
 }
 
 // -------------------------------------------------------------
-// DELETE /bookings/{id} (Level 3: Cancel a booking)
+// DELETE /bookings/{id} 
 // -------------------------------------------------------------
 export async function DELETE(
   request: NextRequest,

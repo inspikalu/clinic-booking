@@ -10,7 +10,6 @@ import {
   AlertCircle,
   RefreshCw,
   Search,
-  Sparkles,
   Stethoscope,
 } from "lucide-react";
 import { SlotWithAvailability, Booking } from "@/lib/types";
@@ -137,64 +136,6 @@ export default function BookingPage() {
     }
   };
 
-  // Seed sample slots (calls POST /reset)
-  const handleSeedDemo = async () => {
-    if (!confirm("Reset database with sample upcoming appointment slots?")) return;
-    setActionLoading(true);
-    setError(null);
-    try {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      const makeSlot = (daysOffset: number, hour: number, id: string, provider: string) => {
-        const d = new Date();
-        d.setDate(d.getDate() + daysOffset);
-        d.setHours(hour, 0, 0, 0);
-        const end = new Date(d);
-        end.setMinutes(30);
-        return {
-          id,
-          provider,
-          start: d.toISOString(),
-          end: end.toISOString(),
-        };
-      };
-
-      const sampleSlots = [
-        makeSlot(1, 9, "slot_ade_01", "Dr. Ade"),
-        makeSlot(1, 10, "slot_ade_02", "Dr. Ade"),
-        makeSlot(1, 11, "slot_ade_03", "Dr. Ade"),
-        makeSlot(1, 14, "slot_chioma_01", "Dr. Chioma"),
-        makeSlot(1, 15, "slot_chioma_02", "Dr. Chioma"),
-        makeSlot(2, 9, "slot_ibrahim_01", "Dr. Ibrahim"),
-        makeSlot(2, 11, "slot_ibrahim_02", "Dr. Ibrahim"),
-        makeSlot(2, 14, "slot_chioma_03", "Dr. Chioma"),
-      ];
-
-      const res = await fetch("/reset", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
-        },
-        body: JSON.stringify({ slots: sampleSlots }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Reset failed");
-      }
-
-      setSuccessMsg("Sample slots seeded successfully!");
-      setBookingConfirmation(null);
-      await fetchSlots();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to seed demo data");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   // Search bookings by email
   const handleSearchBookings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,18 +199,19 @@ export default function BookingPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowMyBookings(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-xs"
             >
               <Search className="h-4 w-4" />
               My Bookings
             </button>
             <button
-              onClick={handleSeedDemo}
-              disabled={actionLoading}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50 cursor-pointer shadow-xs"
+              onClick={fetchSlots}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              title="Refresh slots"
             >
-              <Sparkles className="h-4 w-4" />
-              Seed Demo Slots
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
             </button>
           </div>
         </div>
@@ -331,15 +273,6 @@ export default function BookingPage() {
                 </option>
               ))}
             </select>
-
-            <button
-              onClick={fetchSlots}
-              disabled={loading}
-              className="p-2 border border-slate-300 rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition"
-              title="Refresh slots"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            </button>
           </div>
         </div>
 
@@ -352,17 +285,10 @@ export default function BookingPage() {
         ) : filteredSlots.length === 0 ? (
           <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-white p-8">
             <Calendar className="h-12 w-12 text-slate-400 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-slate-800">No slots found</h3>
-            <p className="text-sm text-slate-500 max-w-md mx-auto mt-1 mb-6">
-              There are currently no slots created. Click the button below to seed demo appointments into your database.
+            <h3 className="text-lg font-semibold text-slate-800">No slots currently available</h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto mt-1">
+              There are currently no slots scheduled for the selected doctor. Please select another provider or check back later.
             </p>
-            <button
-              onClick={handleSeedDemo}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium text-sm rounded-lg hover:bg-blue-700 transition"
-            >
-              <Sparkles className="h-4 w-4" />
-              Seed Demo Appointments
-            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -70,10 +70,15 @@ NEXT_PUBLIC_API_KEY=koya_cohort4_secret_key
    pnpm install
    ```
 
-2. **Run development server**:
+2. **Seed sample appointment slots**:
+   ```bash
+   pnpm seed
+   ```
+
+3. **Run development server**:
    ```bash
    pnpm dev
    ```
 
-3. Open [http://localhost:3000](http://localhost:3000) to view the booking interface.
+4. Open [http://localhost:3000](http://localhost:3000) to view the booking interface.
 

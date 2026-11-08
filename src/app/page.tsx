@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   ChevronDown,
+  Heart,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SlotWithAvailability, Booking } from "@/lib/types";
@@ -947,7 +948,16 @@ export default function CalBookingPage() {
       <footer className="border-t border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-[#111111] py-4">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-zinc-500">
           <p>© 2026 Koya.care. Patient Consultation Scheduling.</p>
-          <span>Next.js 16 & Neon PostgreSQL</span>
+          <a
+            href="https://x.com/inspikalu"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 hover:text-slate-800 dark:hover:text-zinc-300 transition"
+          >
+            <span>with</span>
+            <Heart className="h-3 w-3 text-rose-500 fill-rose-500" />
+            <span>by inspikalu</span>
+          </a>
         </div>
       </footer>
     </div>
